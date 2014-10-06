@@ -17,11 +17,17 @@ Post to Kafka:
 
 	curl -XPOST 'http://localhost:8004/' -H Topic:topic -d 'test data'
 
-Run in docker:
+## Docker
+
+Run the image from docker hub:
+
+	docker run -d -p 8004:80 mcluseau/http2kafka ./run.sh -Dmetadata.broker.list=172.17.42.1:9092
+
+Build and run locally:
 
 	cd docker
 	./build
-	docker run --rm -p 8004:80 http2kafka ./run.sh -Dmetadata.broker.list=172.17.42.1:9092
+	docker run -d -p 8004:80 http2kafka ./run.sh -Dmetadata.broker.list=172.17.42.1:9092
 
 # Properties
 
