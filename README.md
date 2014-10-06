@@ -3,10 +3,9 @@
 
 Run the jar:
 
-    java -jar http2kafka.jar \
-         -Dhttp2kafka.port=8004 \
+    java -Dhttp2kafka.port=8004 \
          -Dmetadata.broker.list=broker1:9092,broker2:9092 \
-         nc.isi.http2kafka.Server
+         -jar http2kafka.jar
 
 Run from maven:
 
@@ -17,6 +16,12 @@ Run from maven:
 Post to Kafka:
 
 	curl -XPOST 'http://localhost:8004/' -H Topic:topic -d 'test data'
+
+Run in docker:
+
+	cd docker
+	./build
+	docker run --rm -p 8004:80 http2kafka ./run.sh -Dmetadata.broker.list=172.17.42.1:9092
 
 # Properties
 
