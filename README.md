@@ -9,7 +9,7 @@ docker build -t you/http2kafka .
 Default properties shown:
 
 ```console
-docker run -it --rm -p 8004:80 codeclimate/http2kafka ./run.sh \
+docker run -it --rm -p 8004:80 you/http2kafka ./run.sh \
   -Dhttp2kafka.host=0.0.0.0 \
   -Dhttp2kafka.port=80 \
   -Dmetadata.broker.list=localhost:9092
