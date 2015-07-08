@@ -6,12 +6,13 @@ import java.io.InputStream;
 import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
-import kafka.javaapi.producer.Producer;
-import kafka.producer.KeyedMessage;
-import kafka.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 
 import org.apache.log4j.Logger;
 import org.simpleframework.http.Request;
@@ -93,11 +94,17 @@ public class Server implements Container {
 		}
 	}
 
-	private final Producer<String, byte[]> producer;
+	private final KafkaProducer<String, byte[]> producer;
 
 	public Server(Properties producerProperties) {
-		ProducerConfig config = new ProducerConfig(producerProperties);
-		producer = new Producer<String, byte[]>(config);
+		String servers = producerProperties.getProperty("metadata.broker.list", "localhost:9092");
+
+		Map <String, Object> hm = new HashMap<String, Object>();
+		hm.put("bootstrap.servers", servers);
+		hm.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+		hm.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
+
+		producer = new KafkaProducer<String, byte[]>(hm);
 	}
 
 	public void handle(Request req, Response resp) {
@@ -110,8 +117,9 @@ public class Server implements Container {
 			ensurePost(req);
 
 			String topic = extractTopic(req);
+			String key = extractKey(req);
 
-			sendBody(req, topic);
+			sendBody(req, topic, key);
 
 			textResponse(resp, "OK");
 
@@ -174,19 +182,44 @@ public class Server implements Container {
 	}
 
 	/**
+	 * Extract the key from the request.
+	 * <p>
+	 * The key is expected to be exactly one <code>Key</code> header.
+	 *
+	 * @param req
+	 *            The request.
+	 * @return The key found in the request, or null
+	 */
+	private String extractKey(Request req) {
+		List<String> keyHeaders = req.getValues("Key");
+		if (keyHeaders.size() != 1) {
+			return null;
+		}
+		String key = keyHeaders.get(0);
+		return key;
+	}
+
+	/**
 	 * Send the response body to Kafka.
 	 * 
 	 * @param req
 	 *            The client's request.
 	 * @param topic
 	 *            The target Kafka topic.
+	 * @param key
+	 *            The Kafka message key.
 	 * @throws HttpError
 	 *             if an {@link IOException} happens while reading the response.
 	 */
-	private void sendBody(Request req, String topic) throws HttpError {
+	private void sendBody(Request req, String topic, String key) throws HttpError {
 		try {
 			byte[] message = readReqBody(req);
-			producer.send(new KeyedMessage<String, byte[]>(topic, message));
+
+			if (key != null) {
+				producer.send(new ProducerRecord(topic, key, message));
+			} else {
+				producer.send(new ProducerRecord(topic, message));
+			}
 		} catch (IOException e) {
 			throw HttpError.internalServerError(e);
 		}
