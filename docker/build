@@ -1,7 +1,0 @@
-#! /bin/sh
-set -ex
-rm -fv ../target/http2kafka-*-jar-with-dependencies.jar
-(cd .. && mvn package -DskipTests)
-cp ../target/http2kafka-*-jar-with-dependencies.jar http2kafka.jar
-
-docker build -t http2kafka .
