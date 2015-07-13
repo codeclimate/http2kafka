@@ -22,6 +22,9 @@ import org.simpleframework.http.core.ContainerServer;
 import org.simpleframework.transport.connect.Connection;
 import org.simpleframework.transport.connect.SocketConnection;
 
+import com.timgroup.statsd.StatsDClient;
+import com.timgroup.statsd.NonBlockingStatsDClient;
+
 /**
  * The main server class.
  * 
@@ -95,9 +98,16 @@ public class Server implements Container {
 	}
 
 	private final KafkaProducer<String, byte[]> producer;
+	private final StatsDClient statsd;
 
 	public Server(Properties producerProperties) {
 		String servers = producerProperties.getProperty("metadata.broker.list", "localhost:9092");
+
+		String statsdHost = producerProperties.getProperty("http2kafka.statsd.host", "localhost");
+		int statsdPort = Integer.parseInt(producerProperties.getProperty(
+				"http2kafka.statsd.port", "8125"));
+
+		statsd = new NonBlockingStatsDClient("http2kafka", statsdHost, statsdPort);
 
 		Map <String, Object> hm = new HashMap<String, Object>();
 		hm.put("bootstrap.servers", servers);
@@ -108,26 +118,37 @@ public class Server implements Container {
 	}
 
 	public void handle(Request req, Response resp) {
+		statsd.incrementCounter("request");
 		if (LOG.isDebugEnabled()) {
 			LOG.debug("Request: " + req.getMethod() + " " + req.getPath());
 			LOG.trace(req);
 		}
 		try {
+			long startTime = System.nanoTime();
+
 			checkPath(req);
 			ensurePost(req);
 
 			String topic = extractTopic(req);
 			String key = extractKey(req);
 
+			statsd.incrementCounter("request." + topic);
 			sendBody(req, topic, key);
+
+			long endTime = System.nanoTime();
+			long duration = (endTime - startTime) / 1000000; // ms
+			statsd.recordExecutionTime("processing_time", duration);
+			statsd.incrementCounter("success");
 
 			textResponse(resp, "OK");
 
 		} catch (HttpError error) {
+			statsd.incrementCounter("error");
 			textResponse(resp, error);
 
 		} catch (Exception e) {
 			LOG.fatal("Error while processing request", e);
+			statsd.incrementCounter("fatal");
 			textResponse(resp, HttpError.internalServerError(e));
 		}
 	}
